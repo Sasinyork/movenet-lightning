@@ -14,6 +14,35 @@ input_size = None
 prev_keypoints = None
 smoothing_factor = 0.7  # Adjust this value (0-1) for smoothing
 
+def get_unique_output_path(base_path, suffix="_pose_detected"):
+    """Generate a unique output path by incrementing the filename if it already exists."""
+    # Create output directory if it doesn't exist
+    output_dir = "output"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Get the original filename
+    filename = os.path.basename(base_path)
+    name, ext = os.path.splitext(filename)
+    
+    # Start with the base name
+    counter = 0
+    while True:
+        if counter == 0:
+            # First try without number
+            output_filename = f"{name}{suffix}{ext}"
+        else:
+            # Then try with incrementing numbers
+            output_filename = f"{name}{suffix}_{counter}{ext}"
+        
+        output_path = os.path.join(output_dir, output_filename)
+        
+        # If file doesn't exist, we can use this path
+        if not os.path.exists(output_path):
+            return output_path
+        
+        counter += 1
+
 def init_crop_region(image_height, image_width):
     """Defines the default crop region."""
     if image_width > image_height:
@@ -343,8 +372,7 @@ def main():
             output_path = None
             if save_output == 'y':
                 # Create output filename
-                base_name = os.path.splitext(video_path)[0]
-                output_path = f"{base_name}_pose_detected.mp4"
+                output_path = get_unique_output_path(video_path)
                 print(f"Output will be saved as: {output_path}")
             
             process_video(video_path, output_path)

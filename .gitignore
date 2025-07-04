@@ -1,3 +1,4 @@
 # ignore directories/files
 venv/
 data/
+output/
