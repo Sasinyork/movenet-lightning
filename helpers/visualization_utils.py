@@ -216,22 +216,128 @@ def progress(value, max=100):
       </progress>
   """.format(value=value, max=max))
 
-def draw_prediction_on_image_simple(image, keypoints_with_scores, keypoint_threshold=0.11):
-    """Draws keypoint predictions on image using OpenCV (faster for webcam)."""
+def draw_prediction_on_image_adaptive(image, keypoints_with_scores, keypoint_threshold=0.15):
+    """Enhanced version that handles close range and raised arms better."""
     height, width, _ = image.shape
     
     # Extract keypoints
     keypoints = keypoints_with_scores[0, 0, :, :]  # Shape: (17, 3)
     
-    # Draw keypoints with different sizes based on confidence
+    # Adaptive threshold based on keypoint visibility
+    # Lower threshold for extremities (hands, feet) since they're more likely to be cut off
+    extremity_keypoints = [9, 10, 15, 16]  # Left/right wrists and ankles
+    upper_body_keypoints = [5, 6, 7, 8]    # Shoulders and elbows
+    
+    # Draw keypoints with adaptive thresholds
+    for i in range(17):
+        confidence = keypoints[i, 2]
+        
+        # Use different thresholds for different body parts
+        if i in extremity_keypoints:
+            # Lower threshold for hands/feet (they might be cut off)
+            threshold = keypoint_threshold * 0.7
+        elif i in upper_body_keypoints:
+            # Medium threshold for upper body
+            threshold = keypoint_threshold * 0.9
+        else:
+            # Normal threshold for core body parts
+            threshold = keypoint_threshold
+        
+        if confidence > threshold:
+            x_norm = keypoints[i, 1]
+            y_norm = keypoints[i, 0]
+            
+            # Convert to pixel coordinates
+            x = int(x_norm * width)
+            y = int(y_norm * height)
+            
+            # Allow keypoints slightly outside bounds (for raised arms, etc.)
+            # But clamp them to reasonable limits
+            x = max(-10, min(width + 10, x))
+            y = max(-10, min(height + 10, y))
+            
+            # Adjust circle size based on confidence and body part
+            if i in extremity_keypoints:
+                radius = int(2 + confidence * 3)  # Smaller for extremities
+            else:
+                radius = int(3 + confidence * 4)  # Normal size for core parts
+            
+            # Color coding based on body part
+            if i in [0, 1, 2, 3, 4]:  # Head
+                color = (0, 255, 255)  # Yellow
+            elif i in [5, 6, 7, 8, 9, 10]:  # Upper body
+                color = (255, 0, 255)  # Magenta
+            elif i in [11, 12, 13, 14, 15, 16]:  # Lower body
+                color = (0, 255, 0)  # Green
+            else:
+                color = (255, 20, 147)  # Deep pink
+            
+            # Only draw if keypoint is reasonably within bounds
+            if 0 <= x < width and 0 <= y < height:
+                cv2.circle(image, (x, y), radius, color, -1)
+                cv2.circle(image, (x, y), radius, (255, 255, 255), 1)
+    
+    # Draw edges with adaptive logic
+    for edge_pair, color in EDGE_COLORS.items():
+        confidence1 = keypoints[edge_pair[0], 2]
+        confidence2 = keypoints[edge_pair[1], 2]
+        
+        # Use adaptive thresholds for edges too
+        if edge_pair[0] in extremity_keypoints or edge_pair[1] in extremity_keypoints:
+            threshold = keypoint_threshold * 0.7
+        elif edge_pair[0] in upper_body_keypoints or edge_pair[1] in upper_body_keypoints:
+            threshold = keypoint_threshold * 0.9
+        else:
+            threshold = keypoint_threshold
+        
+        if confidence1 > threshold and confidence2 > threshold:
+            x1_norm = keypoints[edge_pair[0], 1]
+            y1_norm = keypoints[edge_pair[0], 0]
+            x2_norm = keypoints[edge_pair[1], 1]
+            y2_norm = keypoints[edge_pair[1], 0]
+            
+            x1 = int(x1_norm * width)
+            y1 = int(y1_norm * height)
+            x2 = int(x2_norm * width)
+            y2 = int(y2_norm * height)
+            
+            # Allow edges to extend slightly outside bounds
+            x1 = max(-10, min(width + 10, x1))
+            y1 = max(-10, min(height + 10, y1))
+            x2 = max(-10, min(width + 10, x2))
+            y2 = max(-10, min(height + 10, y2))
+            
+            # Only draw edge if at least one endpoint is within bounds
+            if (0 <= x1 < width and 0 <= y1 < height) or (0 <= x2 < width and 0 <= y2 < height):
+                thickness = max(2, int((confidence1 + confidence2) / 2 * 3))
+                cv2.line(image, (x1, y1), (x2, y2), color, thickness)
+    
+    return image
+
+def draw_prediction_on_image_simple(image, keypoints_with_scores, keypoint_threshold=0.15):
+    """Simple version optimized for close-medium range."""
+    height, width, _ = image.shape
+    
+    # Extract keypoints
+    keypoints = keypoints_with_scores[0, 0, :, :]  # Shape: (17, 3)
+    
+    # Draw keypoints
     for i in range(17):
         confidence = keypoints[i, 2]
         if confidence > keypoint_threshold:
-            x = int(keypoints[i, 1] * width)
-            y = int(keypoints[i, 0] * height)
+            x_norm = keypoints[i, 1]
+            y_norm = keypoints[i, 0]
+            
+            # Convert to pixel coordinates
+            x = int(x_norm * width)
+            y = int(y_norm * height)
+            
+            # Allow slight overflow for raised arms
+            x = max(-5, min(width + 5, x))
+            y = max(-5, min(height + 5, y))
             
             # Adjust circle size based on confidence
-            radius = int(3 + confidence * 5)
+            radius = int(3 + confidence * 4)
             
             # Use different colors for different body parts
             if i in [0, 1, 2, 3, 4]:  # Head keypoints
@@ -241,29 +347,38 @@ def draw_prediction_on_image_simple(image, keypoints_with_scores, keypoint_thres
             elif i in [11, 12, 13, 14, 15, 16]:  # Lower body
                 color = (0, 255, 0)  # Green
             else:
-                color = KEYPOINT_COLOR
+                color = (255, 20, 147)  # Deep pink
             
-            # Draw filled circle
-            cv2.circle(image, (x, y), radius, color, -1)
-            # Draw outline
-            cv2.circle(image, (x, y), radius, (255, 255, 255), 1)
+            # Only draw if keypoint is within reasonable bounds
+            if 0 <= x < width and 0 <= y < height:
+                cv2.circle(image, (x, y), radius, color, -1)
+                cv2.circle(image, (x, y), radius, (255, 255, 255), 1)
     
-    # Draw edges with improved visibility
+    # Draw edges
     for edge_pair, color in EDGE_COLORS.items():
         confidence1 = keypoints[edge_pair[0], 2]
         confidence2 = keypoints[edge_pair[1], 2]
         
         if confidence1 > keypoint_threshold and confidence2 > keypoint_threshold:
-            x1 = int(keypoints[edge_pair[0], 1] * width)
-            y1 = int(keypoints[edge_pair[0], 0] * height)
-            x2 = int(keypoints[edge_pair[1], 1] * width)
-            y2 = int(keypoints[edge_pair[1], 0] * height)
+            x1_norm = keypoints[edge_pair[0], 1]
+            y1_norm = keypoints[edge_pair[0], 0]
+            x2_norm = keypoints[edge_pair[1], 1]
+            y2_norm = keypoints[edge_pair[1], 0]
             
-            # Calculate line thickness based on average confidence
-            avg_confidence = (confidence1 + confidence2) / 2
-            thickness = max(1, int(avg_confidence * 4))
+            x1 = int(x1_norm * width)
+            y1 = int(y1_norm * height)
+            x2 = int(x2_norm * width)
+            y2 = int(y2_norm * height)
             
-            # Draw the line
-            cv2.line(image, (x1, y1), (x2, y2), color, thickness)
+            # Allow slight overflow
+            x1 = max(-5, min(width + 5, x1))
+            y1 = max(-5, min(height + 5, y1))
+            x2 = max(-5, min(width + 5, x2))
+            y2 = max(-5, min(height + 5, y2))
+            
+            # Only draw if at least one endpoint is visible
+            if (0 <= x1 < width and 0 <= y1 < height) or (0 <= x2 < width and 0 <= y2 < height):
+                thickness = max(2, int((confidence1 + confidence2) / 2 * 3))
+                cv2.line(image, (x1, y1), (x2, y2), color, thickness)
     
     return image
