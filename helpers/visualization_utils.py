@@ -50,7 +50,7 @@ KEYPOINT_EDGE_INDS_TO_COLOR = {
     (14, 16): 'c'
 }
 
-# OpenCV colors for keypoints and edges
+# OpenCV colors for keypoints and edges - Enhanced for better visibility
 KEYPOINT_COLOR = (255, 20, 147)  # Deep pink
 EDGE_COLORS = {
     (0, 1): (255, 0, 255),   # Magenta
@@ -215,6 +215,133 @@ def progress(value, max=100):
           {value}
       </progress>
   """.format(value=value, max=max))
+
+def draw_prediction_on_image_enhanced(image, keypoints_with_scores, keypoint_threshold=0.15):
+    """Enhanced version with improved keypoint detection and visibility for squat analysis."""
+    height, width, _ = image.shape
+    
+    # Extract keypoints
+    keypoints = keypoints_with_scores[0, 0, :, :]  # Shape: (17, 3)
+    
+    # Enhanced threshold system for different body parts
+    # Core body parts (more important for squat analysis)
+    core_keypoints = [5, 6, 11, 12, 13, 14]  # Shoulders, hips, knees
+    # Upper body parts
+    upper_body_keypoints = [0, 1, 2, 3, 4, 7, 8, 9, 10]  # Head, arms
+    # Lower body parts
+    lower_body_keypoints = [15, 16]  # Ankles
+    
+    # Draw keypoints with enhanced visibility
+    for i in range(17):
+        confidence = keypoints[i, 2]
+        
+        # Use different thresholds for different body parts
+        if i in core_keypoints:
+            # Lower threshold for core parts (more important for squat analysis)
+            threshold = keypoint_threshold * 0.8
+        elif i in upper_body_keypoints:
+            # Medium threshold for upper body
+            threshold = keypoint_threshold * 0.9
+        else:
+            # Normal threshold for extremities
+            threshold = keypoint_threshold
+        
+        if confidence > threshold:
+            x_norm = keypoints[i, 1]
+            y_norm = keypoints[i, 0]
+            
+            # Convert to pixel coordinates
+            x = int(x_norm * width)
+            y = int(y_norm * height)
+            
+            # Allow keypoints slightly outside bounds (for raised arms, etc.)
+            x = max(-15, min(width + 15, x))
+            y = max(-15, min(height + 15, y))
+            
+            # Enhanced circle size based on confidence and body part importance
+            if i in core_keypoints:
+                radius = int(4 + confidence * 6)  # Larger for core parts
+                thickness = 3
+            elif i in upper_body_keypoints:
+                radius = int(3 + confidence * 4)  # Medium for upper body
+                thickness = 2
+            else:
+                radius = int(2 + confidence * 3)  # Smaller for extremities
+                thickness = 1
+            
+            # Enhanced color coding based on body part importance for squat analysis
+            if i in [0, 1, 2, 3, 4]:  # Head
+                color = (0, 255, 255)  # Yellow
+            elif i in [5, 6]:  # Shoulders (critical for back analysis)
+                color = (255, 0, 0)  # Red
+            elif i in [7, 8, 9, 10]:  # Arms
+                color = (255, 0, 255)  # Magenta
+            elif i in [11, 12]:  # Hips (critical for squat analysis)
+                color = (0, 255, 0)  # Green
+            elif i in [13, 14]:  # Knees (critical for squat analysis)
+                color = (255, 165, 0)  # Orange
+            elif i in [15, 16]:  # Ankles
+                color = (128, 0, 128)  # Purple
+            else:
+                color = (255, 20, 147)  # Deep pink
+            
+            # Only draw if keypoint is reasonably within bounds
+            if 0 <= x < width and 0 <= y < height:
+                # Draw filled circle with border
+                cv2.circle(image, (x, y), radius, color, -1)
+                cv2.circle(image, (x, y), radius, (255, 255, 255), thickness)
+                
+                # Add confidence indicator for core parts
+                if i in core_keypoints and confidence > 0.7:
+                    cv2.circle(image, (x, y), radius + 2, (0, 255, 0), 1)
+    
+    # Draw edges with enhanced visibility
+    for edge_pair, color in EDGE_COLORS.items():
+        confidence1 = keypoints[edge_pair[0], 2]
+        confidence2 = keypoints[edge_pair[1], 2]
+        
+        # Use adaptive thresholds for edges
+        if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
+            threshold = keypoint_threshold * 0.8
+        elif edge_pair[0] in upper_body_keypoints or edge_pair[1] in upper_body_keypoints:
+            threshold = keypoint_threshold * 0.9
+        else:
+            threshold = keypoint_threshold
+        
+        if confidence1 > threshold and confidence2 > threshold:
+            x1_norm = keypoints[edge_pair[0], 1]
+            y1_norm = keypoints[edge_pair[0], 0]
+            x2_norm = keypoints[edge_pair[1], 1]
+            y2_norm = keypoints[edge_pair[1], 0]
+            
+            x1 = int(x1_norm * width)
+            y1 = int(y1_norm * height)
+            x2 = int(x2_norm * width)
+            y2 = int(y2_norm * height)
+            
+            # Allow edges to extend slightly outside bounds
+            x1 = max(-15, min(width + 15, x1))
+            y1 = max(-15, min(height + 15, y1))
+            x2 = max(-15, min(width + 15, x2))
+            y2 = max(-15, min(height + 15, y2))
+            
+            # Only draw edge if at least one endpoint is within bounds
+            if (0 <= x1 < width and 0 <= y1 < height) or (0 <= x2 < width and 0 <= y2 < height):
+                # Enhanced thickness based on confidence and importance
+                avg_confidence = (confidence1 + confidence2) / 2
+                if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
+                    thickness = max(3, int(avg_confidence * 5))
+                else:
+                    thickness = max(2, int(avg_confidence * 3))
+                
+                # Draw the edge
+                cv2.line(image, (x1, y1), (x2, y2), color, thickness)
+                
+                # Add subtle glow effect for core connections
+                if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
+                    cv2.line(image, (x1, y1), (x2, y2), (255, 255, 255), 1)
+    
+    return image
 
 def draw_prediction_on_image_adaptive(image, keypoints_with_scores, keypoint_threshold=0.15):
     """Enhanced version that handles close range and raised arms better."""

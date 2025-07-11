@@ -5,7 +5,7 @@ import cv2
 import os
 import helpers.visualization_utils as vis
 from helpers.model_utils import load_movenet_model
-from helpers.pose_processor import process_video_with_improved_feedback, process_webcam_with_improved_feedback
+from helpers.pose_processor import process_video_with_squat_analysis, process_webcam_with_squat_analysis
 
 # Global variables for model
 movenet = None
@@ -42,10 +42,10 @@ def get_unique_output_path(base_path, suffix="_pose_detected"):
 
 def main():
     """Main function to choose between webcam and video processing."""
-    print("MoveNet Lightning Pose Detection (Mobile Optimized)")
+    print("MoveNet Lightning - Squat Form Analysis")
     print("=" * 50)
-    print("Using MoveNet Lightning TFLite model (192x192 input)")
-    print("Optimized for mobile/Android development")
+    print("Advanced pose detection with squat form analysis")
+    print("Detects: back rounding, knee alignment, depth, arm position")
     print("=" * 50)
     
     print("\nLoading MoveNet Lightning TFLite model...")
@@ -53,64 +53,91 @@ def main():
     movenet, input_size = load_movenet_model()
     print(f"Model loaded! Input size: {input_size}x{input_size}")
     
-    print("\n" + "=" * 40)
-    print("1. Use Webcam (real-time)")
-    print("2. Process Video File")
-    print("3. Use Webcam with Improved Feedback")
-    print("4. Process Video with Improved Feedback")
-    print("=" * 40)
+    print("\n" + "=" * 50)
+    print("1. Squat Form Analysis (Webcam)")
+    print("2. Squat Form Analysis (Video File)")
+    print("3. Basic Pose Detection (Webcam)")
+    print("4. Basic Pose Detection (Video File)")
+    print("=" * 50)
     
     while True:
         choice = input("Enter your choice (1-4): ").strip()
         
         if choice == "1":
-            print("\nStarting webcam...")
-            # Simple webcam without feedback
-            process_webcam_simple()
+            print("\nStarting Squat Form Analysis with Webcam...")
+            print("Position yourself for squats and the system will analyze your form.")
+            print("Features:")
+            print("- Real-time form scoring")
+            print("- Back rounding detection")
+            print("- Knee alignment analysis")
+            print("- Squat depth monitoring")
+            print("- Arm position feedback")
+            print("- 1080p resolution for maximum clarity")
+            print("Press 'q' to quit.")
+            
+            try:
+                process_webcam_with_squat_analysis(movenet, input_size)
+            except KeyboardInterrupt:
+                print("\nStopped by user.")
             break
+            
         elif choice == "2":
-            print("\nVideo file processing selected.")
-            video_path = input("Enter the path to your video file: ").strip()
+            print("\nSquat Form Analysis for Video File")
+            video_path = input("Enter the full path to your video file: ").strip()
             
             if not os.path.exists(video_path):
-                print(f"Error: File '{video_path}' not found!")
+                print(f"Error: File '{video_path}' does not exist.")
                 continue
             
-            # Ask if user wants to save output
             save_output = input("Save processed video? (y/n): ").strip().lower()
             output_path = None
-            if save_output == 'y':
-                # Create output filename
-                output_path = get_unique_output_path(video_path)
-                print(f"Output will be saved as: {output_path}")
             
-            # Simple video processing without feedback
-            process_video_simple(video_path, output_path)
+            if save_output == 'y':
+                output_path = get_unique_output_path(video_path, "_squat_analysis")
+                print(f"Output will be saved to: {output_path}")
+            
+            try:
+                process_video_with_squat_analysis(video_path, movenet, input_size, output_path)
+            except KeyboardInterrupt:
+                print("\nStopped by user.")
             break
+            
         elif choice == "3":
-            print("\nStarting webcam with improved feedback...")
-            process_webcam_with_improved_feedback(movenet, input_size)
+            print("\nStarting Basic Pose Detection with Webcam...")
+            print("Press 'q' to quit.")
+            
+            try:
+                process_webcam_simple()
+            except KeyboardInterrupt:
+                print("\nStopped by user.")
             break
+            
         elif choice == "4":
-            print("\nVideo file processing with improved feedback selected.")
-            video_path = input("Enter the path to your video file: ").strip()
+            print("\nBasic Pose Detection for Video File")
+            video_path = input("Enter the full path to your video file: ").strip()
             
             if not os.path.exists(video_path):
-                print(f"Error: File '{video_path}' not found!")
+                print(f"Error: File '{video_path}' does not exist.")
                 continue
             
-            # Ask if user wants to save output
             save_output = input("Save processed video? (y/n): ").strip().lower()
             output_path = None
-            if save_output == 'y':
-                # Create output filename
-                output_path = get_unique_output_path(video_path, "_with_improved_feedback")
-                print(f"Output will be saved as: {output_path}")
             
-            process_video_with_improved_feedback(video_path, movenet, input_size, output_path)
+            if save_output == 'y':
+                output_path = get_unique_output_path(video_path, "_pose_detected")
+                print(f"Output will be saved to: {output_path}")
+            
+            try:
+                process_video_simple(video_path, output_path)
+            except KeyboardInterrupt:
+                print("\nStopped by user.")
             break
+            
         else:
-            print("Invalid choice. Please enter 1-4.")
+            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+
+if __name__ == "__main__":
+    main()
 
 # Keep the simple processing functions for backward compatibility
 def process_video_simple(video_path, output_path=None):
@@ -157,7 +184,9 @@ def process_video_simple(video_path, output_path=None):
             # Process frame without feedback
             output_overlay, keypoints_with_scores, feedback = processor.process_frame(frame, show_feedback=False)
 
-            # Display the result
+            # Display the result in a 1080p window
+            cv2.namedWindow('MoveNet Lightning - Video Processing', cv2.WINDOW_NORMAL)
+            cv2.resizeWindow('MoveNet Lightning - Video Processing', 1920, 1080)  # 1080p window
             cv2.imshow('MoveNet Lightning - Video Processing', output_overlay)
             
             if writer:
@@ -184,10 +213,12 @@ def process_webcam_simple():
     if not cap.isOpened():
         raise IOError("Cannot open webcam")
 
-    # Set camera properties for better quality
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    # Set camera properties for 1080p quality
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)  # 1080p width
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)  # 1080p height
     cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce latency
+    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)  # Enable autofocus if available
 
     print("Press 'q' to quit.")
 
@@ -201,7 +232,9 @@ def process_webcam_simple():
             # Process frame without feedback
             output_overlay, keypoints_with_scores, feedback = processor.process_frame(frame, show_feedback=False)
 
-            # Display the result
+            # Display the result in a 1080p window
+            cv2.namedWindow('MoveNet Lightning - Webcam', cv2.WINDOW_NORMAL)
+            cv2.resizeWindow('MoveNet Lightning - Webcam', 1920, 1080)  # 1080p window
             cv2.imshow('MoveNet Lightning - Webcam', output_overlay)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -210,6 +243,3 @@ def process_webcam_simple():
     finally:
         cap.release()
         cv2.destroyAllWindows()
-
-if __name__ == "__main__":
-    main()

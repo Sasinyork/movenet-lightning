@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
+from .squat_analyzer import SquatFormAnalyzer
 
 class PoseFeedback:
-    """Handles real-time feedback for pose detection positioning."""
+    """Handles real-time feedback for pose detection positioning and squat form."""
     
     def __init__(self):
         self.stable_frames = 0
@@ -14,6 +15,10 @@ class PoseFeedback:
         self.movement_threshold = 0.05  # Reduced sensitivity
         self.stability_frames_needed = 15  # Need to hold still for 15 frames (0.5 seconds at 30fps)
         self.feedback_persistence_frames = 90  # Keep feedback for 3 seconds (90 frames at 30fps)
+        
+        # Initialize squat form analyzer
+        self.squat_analyzer = SquatFormAnalyzer()
+        self.form_analysis_enabled = True
     
     def calculate_person_center_and_size(self, keypoints_with_scores, image_height, image_width):
         """Calculate the center and size of the person more reliably."""
@@ -82,8 +87,8 @@ class PoseFeedback:
             self.frames_since_movement += 1
             return False, "stable"
     
-    def get_distance_feedback(self, keypoints_with_scores, image_height, image_width):
-        """Get improved feedback about optimal positioning."""
+    def get_comprehensive_feedback(self, keypoints_with_scores, image_height, image_width):
+        """Get comprehensive feedback including positioning and squat form."""
         keypoints = keypoints_with_scores[0, 0, :, :]
         
         # Calculate person center and size
@@ -99,7 +104,8 @@ class PoseFeedback:
                 'recommendation': 'Move into frame and face camera',
                 'person_percentage': 0,
                 'visibility_percentage': 0,
-                'is_stable': False
+                'is_stable': False,
+                'form_analysis': None
             }
         
         # Calculate person area percentage
@@ -114,6 +120,11 @@ class PoseFeedback:
         # Detect movement
         is_moving, movement_type = self.detect_distance_movement(center, size)
         
+        # Get squat form analysis if enabled
+        form_analysis = None
+        if self.form_analysis_enabled and visibility_percentage > 70:  # Only analyze if good visibility
+            form_analysis = self.squat_analyzer.analyze_squat_form(keypoints_with_scores, image_height, image_width)
+        
         feedback = {
             'message': '',
             'color': (0, 255, 0),
@@ -121,7 +132,8 @@ class PoseFeedback:
             'recommendation': '',
             'person_percentage': person_percentage,
             'visibility_percentage': visibility_percentage,
-            'is_stable': False
+            'is_stable': False,
+            'form_analysis': form_analysis
         }
         
         # Handle different movement scenarios
@@ -155,7 +167,7 @@ class PoseFeedback:
             # Check if we've been stable long enough
             if self.frames_since_movement >= self.stability_frames_needed:
                 # Generate new distance feedback
-                feedback = self._generate_distance_feedback(person_percentage, visibility_percentage)
+                feedback = self._generate_distance_feedback(person_percentage, visibility_percentage, form_analysis)
                 feedback['is_stable'] = True
                 self.last_distance_feedback = feedback
                 return feedback
@@ -170,8 +182,8 @@ class PoseFeedback:
                     feedback['recommendation'] = 'Stay in place for distance feedback'
                     return feedback
     
-    def _generate_distance_feedback(self, person_percentage, visibility_percentage):
-        """Generate distance feedback based on person percentage."""
+    def _generate_distance_feedback(self, person_percentage, visibility_percentage, form_analysis=None):
+        """Generate distance feedback based on person percentage and form analysis."""
         feedback = {
             'message': '',
             'color': (0, 255, 0),
@@ -179,7 +191,8 @@ class PoseFeedback:
             'recommendation': '',
             'person_percentage': person_percentage,
             'visibility_percentage': visibility_percentage,
-            'is_stable': True
+            'is_stable': True,
+            'form_analysis': form_analysis
         }
         
         # Distance thresholds (you can adjust these)
@@ -219,34 +232,35 @@ class PoseFeedback:
         
         return feedback
 
-def draw_feedback_overlay(image, feedback):
-    """Draw positioning feedback on the image."""
+def draw_comprehensive_feedback_overlay(image, feedback):
+    """Draw comprehensive feedback on the image with compact layout."""
     height, width, _ = image.shape
     
-    # Create background for text
-    text_bg_height = 100
-    cv2.rectangle(image, (0, 0), (width, text_bg_height), (0, 0, 0), -1)
-    cv2.rectangle(image, (0, 0), (width, text_bg_height), (255, 255, 255), 2)
+    # Create compact background for text at the bottom
+    text_bg_height = 120  # Reduced from 200 to 120
+    bg_y_start = height - text_bg_height
+    cv2.rectangle(image, (0, bg_y_start), (width, height), (0, 0, 0), -1)
+    cv2.rectangle(image, (0, bg_y_start), (width, height), (255, 255, 255), 1)
     
     # Draw main feedback message
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.7
+    font_scale = 0.5  # Reduced from 0.6
     thickness = 2
     
     # Main message
     text_size = cv2.getTextSize(feedback['message'], font, font_scale, thickness)[0]
     text_x = (width - text_size[0]) // 2
-    text_y = 35
+    text_y = bg_y_start + 25  # Reduced from 35
     cv2.putText(image, feedback['message'], (text_x, text_y), font, font_scale, feedback['color'], thickness)
     
-    # Additional info
+    # Additional info (compact)
     info_text = f"Person: {feedback['person_percentage']:.1f}% | Keypoints: {feedback['visibility_percentage']:.1f}%"
-    info_size = cv2.getTextSize(info_text, font, 0.5, 1)[0]
+    info_size = cv2.getTextSize(info_text, font, 0.4, 1)[0]  # Reduced from 0.5
     info_x = (width - info_size[0]) // 2
-    info_y = 60
-    cv2.putText(image, info_text, (info_x, info_y), font, 0.5, (255, 255, 255), 1)
+    info_y = bg_y_start + 45  # Reduced from 60
+    cv2.putText(image, info_text, (info_x, info_y), font, 0.4, (255, 255, 255), 1)
     
-    # Stability indicator
+    # Stability indicator (compact)
     if feedback.get('is_stable', False):
         stability_text = "Position Stable ✓"
         stability_color = (0, 255, 0)
@@ -257,18 +271,56 @@ def draw_feedback_overlay(image, feedback):
         stability_text = "Hold Still"
         stability_color = (0, 165, 255)
     
-    stability_size = cv2.getTextSize(stability_text, font, 0.4, 1)[0]
+    stability_size = cv2.getTextSize(stability_text, font, 0.35, 1)[0]  # Reduced from 0.4
     stability_x = (width - stability_size[0]) // 2
-    stability_y = 85
-    cv2.putText(image, stability_text, (stability_x, stability_y), font, 0.4, stability_color, 1)
+    stability_y = bg_y_start + 65  # Reduced from 85
+    cv2.putText(image, stability_text, (stability_x, stability_y), font, 0.35, stability_color, 1)
     
-    # Draw recommendation in bottom corner
+    # Draw form analysis if available (compact)
+    if feedback.get('form_analysis'):
+        form_analysis = feedback['form_analysis']
+        
+        # Form score (compact)
+        score = form_analysis.get('overall_score', 0)
+        score_color = (0, 255, 0) if score >= 80 else (0, 165, 255) if score >= 60 else (0, 0, 255)
+        score_text = f"Form: {score}/100"
+        score_size = cv2.getTextSize(score_text, font, 0.4, 1)[0]  # Reduced from 0.5
+        score_x = (width - score_size[0]) // 2
+        score_y = bg_y_start + 85  # Reduced from 110
+        cv2.putText(image, score_text, (score_x, score_y), font, 0.4, score_color, 1)
+        
+        # Squat phase (compact)
+        phase = form_analysis.get('phase', 'unknown')
+        phase_text = f"Phase: {phase.title()}"
+        phase_size = cv2.getTextSize(phase_text, font, 0.35, 1)[0]  # Reduced from 0.4
+        phase_x = (width - phase_size[0]) // 2
+        phase_y = bg_y_start + 105  # Reduced from 130
+        cv2.putText(image, phase_text, (phase_x, phase_y), font, 0.35, (255, 255, 255), 1)
+        
+        # Primary issue (compact, only if there's an issue)
+        primary_issue = form_analysis.get('primary_issue')
+        if primary_issue:
+            issue_text = f"Issue: {primary_issue['message']}"
+            # Truncate if too long
+            if len(issue_text) > 45:  # Reduced from 50
+                issue_text = issue_text[:42] + "..."
+            issue_size = cv2.getTextSize(issue_text, font, 0.3, 1)[0]  # Reduced from 0.4
+            issue_x = (width - issue_size[0]) // 2
+            issue_y = bg_y_start + 120  # Reduced from 150
+            cv2.putText(image, issue_text, (issue_x, issue_y), font, 0.3, (255, 255, 255), 1)
+    
+    # Draw recommendation in top corner (smaller)
     if feedback['recommendation']:
-        rec_font_scale = 0.5
+        rec_font_scale = 0.35  # Reduced from 0.4
         rec_thickness = 1
         rec_size = cv2.getTextSize(feedback['recommendation'], font, rec_font_scale, rec_thickness)[0]
         rec_x = 10
-        rec_y = height - 20
+        rec_y = 25  # Reduced from 30
         cv2.putText(image, feedback['recommendation'], (rec_x, rec_y), font, rec_font_scale, feedback['color'], rec_thickness)
     
-    return image 
+    return image
+
+# Keep the old function for backward compatibility
+def draw_feedback_overlay(image, feedback):
+    """Draw positioning feedback on the image (legacy function)."""
+    return draw_comprehensive_feedback_overlay(image, feedback) 

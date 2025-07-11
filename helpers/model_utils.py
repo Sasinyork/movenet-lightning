@@ -9,15 +9,23 @@ def download_tflite_model(url, filename="model.tflite"):
         with open(filename, "wb") as f:
             f.write(response.content)
 
-def load_movenet_model():
+def load_movenet_model(custom_model_path=None):
     """Loads MoveNet Lightning TFLite model optimized for mobile/Android."""
-    # Lightning TFLite model (optimized for mobile)
-    url = "https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite"
-    input_size = 192
+    
+    if custom_model_path and os.path.exists(custom_model_path):
+        # Use custom trained model
+        print(f"Loading custom trained model: {custom_model_path}")
+        model_path = custom_model_path
+    else:
+        # Use pre-trained model
+        print("Loading pre-trained MoveNet Lightning model...")
+        url = "https://tfhub.dev/google/lite-model/movenet/singlepose/lightning/tflite/float16/4?lite-format=tflite"
+        download_tflite_model(url)
+        model_path = "model.tflite"
+    
+    input_size = 192  # Default for Lightning model
 
-    download_tflite_model(url)
-
-    interpreter = tf.lite.Interpreter(model_path="model.tflite")
+    interpreter = tf.lite.Interpreter(model_path=model_path)
     interpreter.allocate_tensors()
 
     def movenet(input_image):
