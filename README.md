@@ -1,17 +1,31 @@
-# MoveNet Lightning - Real-time Pose Detection
+# MoveNet Lightning - Squat Form Analysis
 
-A powerful real-time pose detection application using Google's MoveNet Lightning and Thunder models. This project provides both webcam and video file processing capabilities with advanced features like smart cropping, temporal smoothing, and multiple model options.
+A powerful real-time pose detection and squat form analysis application using Google's MoveNet Lightning model. This project provides comprehensive feedback on squat form, detecting common issues like back rounding, knee alignment, depth problems, and arm positioning.
 
 ## 🚀 Features
 
-- **Real-time Webcam Processing**: Live pose detection from your camera
-- **Video File Processing**: Analyze pre-recorded videos with pose detection
-- **Multiple Model Options**: Choose between Lightning (fast) and Thunder (accurate)
-- **Smart Cropping**: Automatic focus on detected person for better accuracy
+### Advanced Squat Form Analysis
+
+- **Back Rounding Detection**: Analyzes spine alignment and detects excessive forward lean
+- **Knee Alignment Analysis**: Monitors knee position relative to toes and detects valgus (knees caving in)
+- **Squat Depth Monitoring**: Ensures proper depth (thighs parallel to ground)
+- **Arm Position Feedback**: Analyzes arm positioning for optimal balance
+- **Real-time Form Scoring**: Provides 0-100 form score with color-coded feedback
+
+### Pose Detection Features
+
+- **Real-time Webcam Processing**: Live pose detection with form analysis
+- **Video File Processing**: Analyze pre-recorded videos with comprehensive feedback
+- **Enhanced Keypoint Visualization**: Improved skeleton rendering with color-coded body parts
 - **Temporal Smoothing**: Reduces jitter and improves tracking stability
-- **High-Quality Visualization**: Color-coded keypoints and skeleton connections
-- **Progress Tracking**: Real-time progress updates for video processing
-- **Output Saving**: Save processed videos with pose detection overlay
+- **Adaptive Thresholds**: Different sensitivity levels for different body parts
+
+### User Interface Improvements
+
+- **Bottom-aligned Feedback**: Form analysis displayed at bottom of screen
+- **Comprehensive Information**: Form score, phase detection, issues, and recommendations
+- **Color-coded Feedback**: Green (good), Orange (needs improvement), Red (issues)
+- **Real-time Recommendations**: Actionable tips for form improvement
 
 ## 📋 Requirements
 
@@ -52,82 +66,102 @@ python3 main.py
 
 ### Step-by-Step Guide
 
-1. **Select Model**:
+1. **Select Analysis Mode**:
 
    ```
-   Available Models:
-   1. Lightning (faster, 192x192 input)
-   2. Thunder (more accurate, 256x256 input)
-   3. Lightning TFLite (optimized)
-   4. Thunder TFLite (optimized)
+   Available Options:
+   1. Squat Form Analysis (Webcam)
+   2. Squat Form Analysis (Video File)
+   3. Basic Pose Detection (Webcam)
+   4. Basic Pose Detection (Video File)
    ```
 
-2. **Choose Input Source**:
+2. **For Squat Form Analysis**:
 
-   ```
-   1. Use Webcam (real-time)
-   2. Process Video File
-   ```
+   - Position yourself for squats (side view recommended)
+   - Ensure good lighting and full body visibility
+   - Hold still for 2-3 seconds to get initial feedback
+   - Perform squats while the system analyzes your form
+   - Watch for real-time feedback and recommendations
 
-3. **For Webcam Mode**:
+3. **Understanding the Feedback**:
 
-   - Position yourself in front of the camera
-   - Ensure good lighting
-   - Press 'q' to quit
-   - Press 'r' to reset crop region
-
-4. **For Video Mode**:
-   - Provide the full path to your video file
-   - Choose whether to save the processed output
-   - Monitor progress during processing
+   - **Form Score**: 0-100 rating of your overall form
+   - **Phase Detection**: Standing, Descending, Bottom, Ascending
+   - **Issues**: Specific form problems detected
+   - **Recommendations**: Actionable tips for improvement
 
 ## 🎮 Controls
 
 ### Webcam Mode
 
 - **'q'**: Quit the application
-- **'r'**: Reset crop region (useful if tracking gets stuck)
+- **Real-time feedback**: Continuous form analysis and recommendations
 
 ### Video Processing Mode
 
 - **'q'**: Stop processing early
 - **Progress updates**: Displayed every 30 frames
 
-## 📊 Model Comparison
+## 📊 Form Analysis Features
 
-| Model            | Input Size | Speed    | Accuracy   | Best For         |
-| ---------------- | ---------- | -------- | ---------- | ---------------- |
-| Lightning        | 192×192    | ⚡⚡⚡   | ⭐⭐⭐     | Real-time webcam |
-| Thunder          | 256×256    | ⚡⚡     | ⭐⭐⭐⭐⭐ | Video analysis   |
-| Lightning TFLite | 192×192    | ⚡⚡⚡⚡ | ⭐⭐⭐     | Mobile/edge      |
-| Thunder TFLite   | 256×256    | ⚡⚡⚡   | ⭐⭐⭐⭐⭐ | Best overall     |
+### Back Analysis
+
+- **Back Rounding Detection**: Measures spine angle and alerts for excessive forward lean
+- **Shoulder Level**: Ensures shoulders remain level during movement
+- **Chest Position**: Monitors chest up position for proper form
+
+### Knee Analysis
+
+- **Knee-to-Toe Alignment**: Ensures knees track over toes
+- **Valgus Detection**: Alerts when knees cave inward
+- **Knee Stability**: Monitors knee position throughout movement
+
+### Depth Analysis
+
+- **Squat Depth**: Ensures proper depth (thighs parallel to ground)
+- **Depth Consistency**: Monitors consistent depth across repetitions
+- **Excessive Depth**: Warns if going too deep (if uncomfortable)
+
+### Arm Position
+
+- **Arm Extension**: Analyzes arm position for balance
+- **Arm Height**: Ensures arms are at appropriate height
+- **Arm Symmetry**: Checks for balanced arm positioning
 
 ## 🎨 Visualization Features
 
-### Keypoint Colors
+### Enhanced Keypoint Colors
 
 - **🟡 Yellow**: Head keypoints (nose, eyes, ears)
-- **🟣 Magenta**: Upper body (shoulders, arms, hands)
-- **🟢 Green**: Lower body (hips, knees, ankles)
+- **🔴 Red**: Shoulders (critical for back analysis)
+- **🟣 Magenta**: Arms (elbows, wrists)
+- **🟢 Green**: Hips (critical for squat analysis)
+- **🟠 Orange**: Knees (critical for squat analysis)
+- **🟣 Purple**: Ankles
 
 ### Visual Elements
 
-- **Green Rectangle**: Crop region being analyzed
-- **Colored Circles**: Keypoints with confidence-based sizing
-- **Colored Lines**: Skeleton connections with confidence-based thickness
+- **Enhanced Skeleton**: Thicker, more visible connections
+- **Confidence Indicators**: Green rings around high-confidence keypoints
+- **Color-coded Feedback**: Bottom overlay with comprehensive information
+- **Real-time Scoring**: Live form score updates
 
 ## 📁 Project Structure
 
 ```
 movenet-lightning/
 ├── main.py                 # Main application script
+├── test_squat_analysis.py  # Test script for system verification
 ├── requirements.txt        # Python dependencies
 ├── README.md              # This file
 ├── helpers/
 │   ├── __init__.py
 │   ├── model_utils.py     # Model loading utilities
-│   ├── movenet_utils.py   # MoveNet-specific utilities
-│   └── visualization_utils.py  # Visualization functions
+│   ├── squat_analyzer.py  # Squat form analysis engine
+│   ├── feedback_utils.py  # Comprehensive feedback system
+│   ├── pose_processor.py  # Pose detection processing
+│   └── visualization_utils.py  # Enhanced visualization functions
 ├── data/                  # Sample data directory
 └── output/               # Output directory for processed videos
 ```
@@ -136,30 +170,33 @@ movenet-lightning/
 
 ### Adjustable Parameters
 
-In `main.py`, you can modify:
+In the squat analyzer (`helpers/squat_analyzer.py`), you can modify:
 
-- **Smoothing Factor**: `smoothing_factor = 0.7` (0-1, higher = more smoothing)
-- **Keypoint Threshold**: `keypoint_threshold=0.2` (0-1, higher = more selective)
-- **Camera Resolution**: Modify `cap.set()` calls for different resolutions
+- **Angle Thresholds**: Back rounding detection sensitivity
+- **Depth Thresholds**: Squat depth requirements
+- **Alignment Thresholds**: Knee-to-toe alignment tolerance
+- **Confidence Thresholds**: Keypoint detection sensitivity
 
 ### Performance Tips
 
-1. **For Real-time Performance**:
+1. **For Best Form Analysis**:
 
-   - Use Lightning models (options 1 or 3)
-   - Ensure good lighting
-   - Keep background simple
+   - Use side view for squats (camera perpendicular to movement)
+   - Ensure full body is visible in frame
+   - Maintain good lighting conditions
+   - Wear contrasting clothing for better detection
 
-2. **For Best Accuracy**:
+2. **For Real-time Performance**:
 
-   - Use Thunder models (options 2 or 4)
-   - Process videos instead of real-time
+   - Use 640x480 resolution for webcam
+   - Close other applications
+   - Ensure adequate lighting
+
+3. **For Video Analysis**:
+
    - Use high-quality video input
-
-3. **For Mobile/Edge Devices**:
-   - Use TFLite models (options 3 or 4)
-   - Reduce input resolution
-   - Lower smoothing factor
+   - Ensure stable camera position
+   - Record from side angle for best analysis
 
 ## 🐛 Troubleshooting
 
@@ -171,37 +208,46 @@ In `main.py`, you can modify:
    - Restart Terminal after granting permissions
    - Ensure no other app is using the camera
 
-2. **Poor keypoint accuracy**:
+2. **Poor form detection**:
 
-   - Switch to Thunder model
    - Improve lighting conditions
    - Ensure full body is visible
-   - Reset crop region with 'r' key
+   - Wear contrasting clothing
+   - Position camera at side view for squats
 
-3. **Slow performance**:
+3. **Inaccurate form analysis**:
 
-   - Switch to Lightning model
+   - Ensure camera is perpendicular to movement
+   - Maintain consistent distance from camera
+   - Perform squats in center of frame
+   - Check that all keypoints are visible
+
+4. **Slow performance**:
+
    - Reduce camera resolution
    - Close other applications
+   - Use basic pose detection for faster processing
 
-4. **SSL Warnings**:
-   - These are harmless warnings on macOS
-   - Can be ignored or fixed by installing `urllib3==1.26.18`
+### Testing the System
 
-### Video Format Support
+Run the test script to verify all components work:
 
-Supported input formats:
+```bash
+python3 test_squat_analysis.py
+```
 
-- MP4, AVI, MOV, MKV, WMV, FLV
-- Any resolution and frame rate
-- Output maintains original properties
+This will test:
+
+- Squat form analyzer
+- Feedback system
+- Visualization components
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
+4. Test thoroughly with `python3 test_squat_analysis.py`
 5. Submit a pull request
 
 ## 📄 License
@@ -212,16 +258,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Google's MoveNet team for the excellent pose detection models
 - TensorFlow and TensorFlow Hub for model hosting
-- OpenCV community for computer vision tools
+- Fitness community for form analysis insights
 
-## 📞 Support
+## 🎯 Future Enhancements
 
-If you encounter any issues or have questions:
-
-1. Check the troubleshooting section above
-2. Review the project structure and configuration options
-3. Open an issue on the repository with detailed information
-
----
-
-**Happy pose detecting! 🎯**
+- Support for other exercises (deadlift, bench press)
+- Rep counting and set tracking
+- Form history and progress tracking
+- Mobile app version
+- Integration with fitness apps
