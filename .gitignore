@@ -2,3 +2,5 @@
 venv/
 data/
 output/
+test_depth_logic.py
+test_squat_analysis.py

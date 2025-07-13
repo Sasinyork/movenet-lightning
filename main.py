@@ -56,12 +56,10 @@ def main():
     print("\n" + "=" * 50)
     print("1. Squat Form Analysis (Webcam)")
     print("2. Squat Form Analysis (Video File)")
-    print("3. Basic Pose Detection (Webcam)")
-    print("4. Basic Pose Detection (Video File)")
     print("=" * 50)
     
     while True:
-        choice = input("Enter your choice (1-4): ").strip()
+        choice = input("Enter your choice (1-2): ").strip()
         
         if choice == "1":
             print("\nStarting Squat Form Analysis with Webcam...")
@@ -102,144 +100,10 @@ def main():
                 print("\nStopped by user.")
             break
             
-        elif choice == "3":
-            print("\nStarting Basic Pose Detection with Webcam...")
-            print("Press 'q' to quit.")
-            
-            try:
-                process_webcam_simple()
-            except KeyboardInterrupt:
-                print("\nStopped by user.")
-            break
-            
-        elif choice == "4":
-            print("\nBasic Pose Detection for Video File")
-            video_path = input("Enter the full path to your video file: ").strip()
-            
-            if not os.path.exists(video_path):
-                print(f"Error: File '{video_path}' does not exist.")
-                continue
-            
-            save_output = input("Save processed video? (y/n): ").strip().lower()
-            output_path = None
-            
-            if save_output == 'y':
-                output_path = get_unique_output_path(video_path, "_pose_detected")
-                print(f"Output will be saved to: {output_path}")
-            
-            try:
-                process_video_simple(video_path, output_path)
-            except KeyboardInterrupt:
-                print("\nStopped by user.")
-            break
-            
         else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+            print("Invalid choice. Please enter 1 or 2.")
 
 if __name__ == "__main__":
     main()
 
-# Keep the simple processing functions for backward compatibility
-def process_video_simple(video_path, output_path=None):
-    """Simple video processing without feedback."""
-    from helpers.pose_processor import PoseProcessor
-    
-    processor = PoseProcessor(movenet, input_size)
-    
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Could not open video file {video_path}")
-        return
-    
-    # Get video properties
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    print(f"Video info: {width}x{height}, {fps} FPS, {total_frames} frames")
-    
-    # Setup video writer if output path is provided
-    writer = None
-    if output_path:
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        print(f"Output will be saved to: {output_path}")
-    
-    frame_count = 0
-    
-    print("Processing video... Press 'q' to stop early.")
-    
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            frame_count += 1
-            if frame_count % 30 == 0:
-                progress = (frame_count / total_frames) * 100
-                print(f"Progress: {progress:.1f}% ({frame_count}/{total_frames})")
-            
-            # Process frame without feedback
-            output_overlay, keypoints_with_scores, feedback = processor.process_frame(frame, show_feedback=False)
 
-            # Display the result in a 1080p window
-            cv2.namedWindow('MoveNet Lightning - Video Processing', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('MoveNet Lightning - Video Processing', 1920, 1080)  # 1080p window
-            cv2.imshow('MoveNet Lightning - Video Processing', output_overlay)
-            
-            if writer:
-                writer.write(output_overlay)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                print("Processing stopped by user.")
-                break
-                
-    finally:
-        cap.release()
-        if writer:
-            writer.release()
-        cv2.destroyAllWindows()
-        print("Video processing completed!")
-
-def process_webcam_simple():
-    """Simple webcam processing without feedback."""
-    from helpers.pose_processor import PoseProcessor
-    
-    processor = PoseProcessor(movenet, input_size)
-    
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise IOError("Cannot open webcam")
-
-    # Set camera properties for 1080p quality
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)  # 1080p width
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)  # 1080p height
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Reduce latency
-    cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)  # Enable autofocus if available
-
-    print("Press 'q' to quit.")
-
-    try:
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                print("Failed to grab frame")
-                break
-
-            # Process frame without feedback
-            output_overlay, keypoints_with_scores, feedback = processor.process_frame(frame, show_feedback=False)
-
-            # Display the result in a 1080p window
-            cv2.namedWindow('MoveNet Lightning - Webcam', cv2.WINDOW_NORMAL)
-            cv2.resizeWindow('MoveNet Lightning - Webcam', 1920, 1080)  # 1080p window
-            cv2.imshow('MoveNet Lightning - Webcam', output_overlay)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()

@@ -285,17 +285,11 @@ def draw_prediction_on_image_enhanced(image, keypoints_with_scores, keypoint_thr
             else:
                 color = (255, 20, 147)  # Deep pink
             
-            # Only draw if keypoint is reasonably within bounds
-            if 0 <= x < width and 0 <= y < height:
-                # Draw filled circle with border
-                cv2.circle(image, (x, y), radius, color, -1)
-                cv2.circle(image, (x, y), radius, (255, 255, 255), thickness)
-                
-                # Add confidence indicator for core parts
-                if i in core_keypoints and confidence > 0.7:
-                    cv2.circle(image, (x, y), radius + 2, (0, 255, 0), 1)
+            # Draw keypoint
+            cv2.circle(image, (x, y), radius, color, -1)
+            cv2.circle(image, (x, y), radius, (255, 255, 255), thickness)
     
-    # Draw edges with enhanced visibility
+    # Draw edges with enhanced logic
     for edge_pair, color in EDGE_COLORS.items():
         confidence1 = keypoints[edge_pair[0], 2]
         confidence2 = keypoints[edge_pair[1], 2]
@@ -303,8 +297,6 @@ def draw_prediction_on_image_enhanced(image, keypoints_with_scores, keypoint_thr
         # Use adaptive thresholds for edges
         if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
             threshold = keypoint_threshold * 0.8
-        elif edge_pair[0] in upper_body_keypoints or edge_pair[1] in upper_body_keypoints:
-            threshold = keypoint_threshold * 0.9
         else:
             threshold = keypoint_threshold
         
@@ -325,21 +317,11 @@ def draw_prediction_on_image_enhanced(image, keypoints_with_scores, keypoint_thr
             x2 = max(-15, min(width + 15, x2))
             y2 = max(-15, min(height + 15, y2))
             
-            # Only draw edge if at least one endpoint is within bounds
-            if (0 <= x1 < width and 0 <= y1 < height) or (0 <= x2 < width and 0 <= y2 < height):
-                # Enhanced thickness based on confidence and importance
-                avg_confidence = (confidence1 + confidence2) / 2
-                if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
-                    thickness = max(3, int(avg_confidence * 5))
-                else:
-                    thickness = max(2, int(avg_confidence * 3))
-                
-                # Draw the edge
-                cv2.line(image, (x1, y1), (x2, y2), color, thickness)
-                
-                # Add subtle glow effect for core connections
-                if edge_pair[0] in core_keypoints or edge_pair[1] in core_keypoints:
-                    cv2.line(image, (x1, y1), (x2, y2), (255, 255, 255), 1)
+            # Enhanced line thickness based on confidence
+            avg_confidence = (confidence1 + confidence2) / 2
+            thickness = max(2, int(avg_confidence * 4))
+            
+            cv2.line(image, (x1, y1), (x2, y2), color, thickness)
     
     return image
 
@@ -409,7 +391,7 @@ def draw_prediction_on_image_adaptive(image, keypoints_with_scores, keypoint_thr
         confidence1 = keypoints[edge_pair[0], 2]
         confidence2 = keypoints[edge_pair[1], 2]
         
-        # Use adaptive thresholds for edges too
+        # Use adaptive thresholds for edges
         if edge_pair[0] in extremity_keypoints or edge_pair[1] in extremity_keypoints:
             threshold = keypoint_threshold * 0.7
         elif edge_pair[0] in upper_body_keypoints or edge_pair[1] in upper_body_keypoints:
@@ -503,7 +485,7 @@ def draw_prediction_on_image_simple(image, keypoints_with_scores, keypoint_thres
             x2 = max(-5, min(width + 5, x2))
             y2 = max(-5, min(height + 5, y2))
             
-            # Only draw if at least one endpoint is visible
+            # Only draw if at least one endpoint is within bounds
             if (0 <= x1 < width and 0 <= y1 < height) or (0 <= x2 < width and 0 <= y2 < height):
                 thickness = max(2, int((confidence1 + confidence2) / 2 * 3))
                 cv2.line(image, (x1, y1), (x2, y2), color, thickness)

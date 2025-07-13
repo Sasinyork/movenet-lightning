@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw
 from .squat_analyzer import SquatFormAnalyzer
 
 class PoseFeedback:
@@ -117,8 +118,13 @@ class PoseFeedback:
         visible_keypoints = sum(1 for i in range(17) if keypoints[i, 2] > 0.15)
         visibility_percentage = (visible_keypoints / 17) * 100
         
-        # Detect movement
-        is_moving, movement_type = self.detect_distance_movement(center, size)
+        # --- DISABLE DISTANCE FEEDBACK ---
+        # is_moving, movement_type = self.detect_distance_movement(center, size)
+        # if movement_type == "initializing": ...
+        # if movement_type == "distance_changing": ...
+        # if movement_type == "sideways_movement": ...
+        # if movement_type == "stable": ...
+        # Instead, always show form feedback below:
         
         # Get squat form analysis if enabled
         form_analysis = None
@@ -128,66 +134,7 @@ class PoseFeedback:
         feedback = {
             'message': '',
             'color': (0, 255, 0),
-            'distance_status': 'optimal',
-            'recommendation': '',
-            'person_percentage': person_percentage,
-            'visibility_percentage': visibility_percentage,
-            'is_stable': False,
-            'form_analysis': form_analysis
-        }
-        
-        # Handle different movement scenarios
-        if movement_type == "initializing":
-            feedback['message'] = "Initializing... hold still"
-            feedback['color'] = (0, 165, 255)  # Orange
-            feedback['distance_status'] = 'initializing'
-            feedback['recommendation'] = 'Stay in place for 2-3 seconds'
-            return feedback
-        
-        elif movement_type == "distance_changing":
-            feedback['message'] = "Distance changing... hold still"
-            feedback['color'] = (0, 165, 255)  # Orange
-            feedback['distance_status'] = 'moving'
-            feedback['recommendation'] = 'Stop moving for distance feedback'
-            self.last_distance_feedback = None  # Reset previous feedback
-            return feedback
-        
-        elif movement_type == "sideways_movement":
-            # Keep previous feedback if it exists and is recent
-            if self.last_distance_feedback and self.frames_since_movement < self.feedback_persistence_frames:
-                return self.last_distance_feedback
-            else:
-                feedback['message'] = "Hold still for distance feedback"
-                feedback['color'] = (0, 165, 255)  # Orange
-                feedback['distance_status'] = 'moving'
-                feedback['recommendation'] = 'Stay in place for 2-3 seconds'
-                return feedback
-        
-        elif movement_type == "stable":
-            # Check if we've been stable long enough
-            if self.frames_since_movement >= self.stability_frames_needed:
-                # Generate new distance feedback
-                feedback = self._generate_distance_feedback(person_percentage, visibility_percentage, form_analysis)
-                feedback['is_stable'] = True
-                self.last_distance_feedback = feedback
-                return feedback
-            else:
-                # Still stabilizing, keep previous feedback if available
-                if self.last_distance_feedback and self.frames_since_movement < self.feedback_persistence_frames:
-                    return self.last_distance_feedback
-                else:
-                    feedback['message'] = f"Hold still... ({self.stability_frames_needed - self.frames_since_movement} frames left)"
-                    feedback['color'] = (0, 165, 255)  # Orange
-                    feedback['distance_status'] = 'stabilizing'
-                    feedback['recommendation'] = 'Stay in place for distance feedback'
-                    return feedback
-    
-    def _generate_distance_feedback(self, person_percentage, visibility_percentage, form_analysis=None):
-        """Generate distance feedback based on person percentage and form analysis."""
-        feedback = {
-            'message': '',
-            'color': (0, 255, 0),
-            'distance_status': 'optimal',
+            'distance_status': None,
             'recommendation': '',
             'person_percentage': person_percentage,
             'visibility_percentage': visibility_percentage,
@@ -195,128 +142,204 @@ class PoseFeedback:
             'form_analysis': form_analysis
         }
         
-        # Distance thresholds (you can adjust these)
-        if person_percentage > 60:
-            feedback['message'] = "Too close - step back"
-            feedback['color'] = (0, 0, 255)  # Red
-            feedback['distance_status'] = 'too_close'
-            feedback['recommendation'] = 'Move back 2-3 feet'
-        elif person_percentage > 40:
-            feedback['message'] = "Good distance for detail"
-            feedback['color'] = (0, 165, 255)  # Orange
-            feedback['distance_status'] = 'close'
-            feedback['recommendation'] = 'Current position is good'
-        elif person_percentage > 15:  # Adjusted from 20 to 15
-            feedback['message'] = "Perfect distance!"
-            feedback['color'] = (0, 255, 0)  # Green
-            feedback['distance_status'] = 'optimal'
-            feedback['recommendation'] = 'Ideal positioning'
-        elif person_percentage > 8:
-            feedback['message'] = "Move closer"
-            feedback['color'] = (0, 165, 255)  # Orange
-            feedback['distance_status'] = 'medium'
-            feedback['recommendation'] = 'Step forward 1-2 feet'
+        # Only show form feedback
+        if form_analysis:
+            if form_analysis.get('depth_message'):
+                # Only show depth message in overlay, not as main message
+                feedback['message'] = ''
+                if form_analysis.get('depth_status') == 'good':
+                    feedback['color'] = (0, 255, 0)
+                elif form_analysis.get('depth_status') == 'needs_improvement':
+                    feedback['color'] = (0, 165, 255)
+                else:
+                    feedback['color'] = (255, 255, 255)
+            if form_analysis.get('recommendations'):
+                feedback['recommendation'] = form_analysis['recommendations'][0]
         else:
-            feedback['message'] = "Too far - move closer"
-            feedback['color'] = (0, 0, 255)  # Red
-            feedback['distance_status'] = 'too_far'
-            feedback['recommendation'] = 'Step forward 3-4 feet'
-        
-        # Add visibility feedback
-        if visibility_percentage < 60:
-            feedback['message'] += " - Poor detection"
-            feedback['color'] = (0, 0, 255)  # Red
-        elif visibility_percentage < 80:
-            feedback['message'] += " - Some keypoints missing"
-            feedback['color'] = (0, 165, 255)  # Orange
+            feedback['message'] = "Hold still for form feedback"
+            feedback['color'] = (0, 165, 255)
+            feedback['recommendation'] = "Stay in place for form feedback"
         
         return feedback
 
+def draw_rounded_rectangle(image, x1, y1, x2, y2, color, radius=20, thickness=-1):
+    """Draw a rounded rectangle on the image."""
+    # Create a mask for the rounded rectangle
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    
+    # Draw the rounded rectangle on the mask
+    cv2.rectangle(mask, (x1 + radius, y1), (x2 - radius, y2), 255, -1)
+    cv2.rectangle(mask, (x1, y1 + radius), (x2, y2 - radius), 255, -1)
+    
+    # Draw the corner circles
+    cv2.circle(mask, (x1 + radius, y1 + radius), radius, 255, -1)
+    cv2.circle(mask, (x2 - radius, y1 + radius), radius, 255, -1)
+    cv2.circle(mask, (x1 + radius, y2 - radius), radius, 255, -1)
+    cv2.circle(mask, (x2 - radius, y2 - radius), radius, 255, -1)
+    
+    # Apply the mask to the image
+    image[mask == 255] = color
+
+def draw_rounded_rectangle_simple(image, x1, y1, x2, y2, color, radius=15):
+    """Draw a simple rounded rectangle."""
+    # Draw the main rectangle
+    cv2.rectangle(image, (x1 + radius, y1), (x2 - radius, y2), color, -1)
+    cv2.rectangle(image, (x1, y1 + radius), (x2, y2 - radius), color, -1)
+    
+    # Draw the corner circles
+    cv2.circle(image, (x1 + radius, y1 + radius), radius, color, -1)
+    cv2.circle(image, (x2 - radius, y1 + radius), radius, color, -1)
+    cv2.circle(image, (x1 + radius, y2 - radius), radius, color, -1)
+    cv2.circle(image, (x2 - radius, y2 - radius), radius, color, -1)
+
+def draw_rounded_rectangle_fast(image, x1, y1, x2, y2, color, radius=10):
+    """Draw a rounded rectangle with solid color - maximum performance."""
+    # Draw the main rectangle
+    cv2.rectangle(image, (x1 + radius, y1), (x2 - radius, y2), color, -1)
+    cv2.rectangle(image, (x1, y1 + radius), (x2, y2 - radius), color, -1)
+    
+    # Draw the corner circles
+    cv2.circle(image, (x1 + radius, y1 + radius), radius, color, -1)
+    cv2.circle(image, (x2 - radius, y1 + radius), radius, color, -1)
+    cv2.circle(image, (x1 + radius, y2 - radius), radius, color, -1)
+    cv2.circle(image, (x2 - radius, y2 - radius), radius, color, -1)
+
+def draw_rounded_rectangle_with_alpha(image, x1, y1, x2, y2, color, alpha=0.7, radius=10):
+    """Draw a rounded rectangle with alpha transparency using PIL for better performance."""
+    # Convert OpenCV image to PIL
+    pil_image = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    
+    # Create a transparent overlay
+    overlay = Image.new('RGBA', pil_image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    # Draw rounded rectangle with alpha
+    draw.rounded_rectangle([x1, y1, x2, y2], radius=radius, fill=(color[0], color[1], color[2], int(255 * alpha)))
+    
+    # Composite the overlay onto the image
+    result = Image.alpha_composite(pil_image.convert('RGBA'), overlay)
+    
+    # Convert back to OpenCV format
+    return cv2.cvtColor(np.array(result), cv2.COLOR_RGBA2BGR)
+
 def draw_comprehensive_feedback_overlay(image, feedback):
-    """Draw comprehensive feedback on the image with compact layout."""
+    """Draw comprehensive feedback on the image with mobile-optimized layout."""
     height, width, _ = image.shape
     
-    # Create compact background for text at the bottom
-    text_bg_height = 120  # Reduced from 200 to 120
-    bg_y_start = height - text_bg_height
-    cv2.rectangle(image, (0, bg_y_start), (width, height), (0, 0, 0), -1)
-    cv2.rectangle(image, (0, bg_y_start), (width, height), (255, 255, 255), 1)
+    # Calculate adaptive background height based on content - reduced for mobile
+    base_height = 60  # Reduced since we removed phase and simplified feedback
+    extra_height = 0
     
-    # Draw main feedback message
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5  # Reduced from 0.6
-    thickness = 2
-    
-    # Main message
-    text_size = cv2.getTextSize(feedback['message'], font, font_scale, thickness)[0]
-    text_x = (width - text_size[0]) // 2
-    text_y = bg_y_start + 25  # Reduced from 35
-    cv2.putText(image, feedback['message'], (text_x, text_y), font, font_scale, feedback['color'], thickness)
-    
-    # Additional info (compact)
-    info_text = f"Person: {feedback['person_percentage']:.1f}% | Keypoints: {feedback['visibility_percentage']:.1f}%"
-    info_size = cv2.getTextSize(info_text, font, 0.4, 1)[0]  # Reduced from 0.5
-    info_x = (width - info_size[0]) // 2
-    info_y = bg_y_start + 45  # Reduced from 60
-    cv2.putText(image, info_text, (info_x, info_y), font, 0.4, (255, 255, 255), 1)
-    
-    # Stability indicator (compact)
-    if feedback.get('is_stable', False):
-        stability_text = "Position Stable ✓"
-        stability_color = (0, 255, 0)
-    elif feedback['distance_status'] == 'stabilizing':
-        stability_text = f"Stabilizing... ({feedback.get('frames_left', 0)})"
-        stability_color = (0, 165, 255)
-    else:
-        stability_text = "Hold Still"
-        stability_color = (0, 165, 255)
-    
-    stability_size = cv2.getTextSize(stability_text, font, 0.35, 1)[0]  # Reduced from 0.4
-    stability_x = (width - stability_size[0]) // 2
-    stability_y = bg_y_start + 65  # Reduced from 85
-    cv2.putText(image, stability_text, (stability_x, stability_y), font, 0.35, stability_color, 1)
-    
-    # Draw form analysis if available (compact)
+    # Add extra height for form analysis
     if feedback.get('form_analysis'):
         form_analysis = feedback['form_analysis']
-        
-        # Form score (compact)
-        score = form_analysis.get('overall_score', 0)
-        score_color = (0, 255, 0) if score >= 80 else (0, 165, 255) if score >= 60 else (0, 0, 255)
-        score_text = f"Form: {score}/100"
-        score_size = cv2.getTextSize(score_text, font, 0.4, 1)[0]  # Reduced from 0.5
-        score_x = (width - score_size[0]) // 2
-        score_y = bg_y_start + 85  # Reduced from 110
-        cv2.putText(image, score_text, (score_x, score_y), font, 0.4, score_color, 1)
-        
-        # Squat phase (compact)
-        phase = form_analysis.get('phase', 'unknown')
-        phase_text = f"Phase: {phase.title()}"
-        phase_size = cv2.getTextSize(phase_text, font, 0.35, 1)[0]  # Reduced from 0.4
-        phase_x = (width - phase_size[0]) // 2
-        phase_y = bg_y_start + 105  # Reduced from 130
-        cv2.putText(image, phase_text, (phase_x, phase_y), font, 0.35, (255, 255, 255), 1)
-        
-        # Primary issue (compact, only if there's an issue)
-        primary_issue = form_analysis.get('primary_issue')
-        if primary_issue:
-            issue_text = f"Issue: {primary_issue['message']}"
-            # Truncate if too long
-            if len(issue_text) > 45:  # Reduced from 50
-                issue_text = issue_text[:42] + "..."
-            issue_size = cv2.getTextSize(issue_text, font, 0.3, 1)[0]  # Reduced from 0.4
-            issue_x = (width - issue_size[0]) // 2
-            issue_y = bg_y_start + 120  # Reduced from 150
-            cv2.putText(image, issue_text, (issue_x, issue_y), font, 0.3, (255, 255, 255), 1)
+        if form_analysis.get('depth_message') and form_analysis.get('depth_status'):
+            extra_height += 15  # Reduced since we have less content
+        # Add extra height for recommendations
+        if form_analysis.get('recommendations') and len(form_analysis['recommendations']) > 0:
+            recommendation_text = form_analysis['recommendations'][0]
+            # Calculate how many lines the recommendation will need
+            max_chars_per_line = 65
+            if len(recommendation_text) > max_chars_per_line:
+                # Estimate number of lines (rough calculation)
+                estimated_lines = max(1, len(recommendation_text) // max_chars_per_line + 1)
+                extra_height += (estimated_lines * 15)  # 15 pixels per line
+            else:
+                extra_height += 20  # Space for single line recommendation text
     
-    # Draw recommendation in top corner (smaller)
-    if feedback['recommendation']:
-        rec_font_scale = 0.35  # Reduced from 0.4
-        rec_thickness = 1
-        rec_size = cv2.getTextSize(feedback['recommendation'], font, rec_font_scale, rec_thickness)[0]
-        rec_x = 10
-        rec_y = 25  # Reduced from 30
-        cv2.putText(image, feedback['recommendation'], (rec_x, rec_y), font, rec_font_scale, feedback['color'], rec_thickness)
+    text_bg_height = base_height + extra_height
+    
+    # Ensure we don't exceed image bounds and leave some margin
+    max_height = min(height * 0.25, 140)  # Reduced max height for mobile
+    if text_bg_height > max_height:
+        text_bg_height = int(max_height)
+    
+    # Position overlay with margin from bottom and sides
+    margin = 5  # Reduced margin to give more space
+    side_margin = min(600, width // 4)  # Reduced side margin to give more space for text
+    bg_y_start = height - text_bg_height - margin
+    
+    # Ensure valid rectangle coordinates
+    x1 = side_margin
+    x2 = width - side_margin
+    y1 = bg_y_start
+    y2 = height - margin
+    
+    # Only draw if we have a valid rectangle
+    if x1 < x2 and y1 < y2:
+        # Draw rounded rectangle background with alpha transparency
+        image = draw_rounded_rectangle_with_alpha(image, x1, y1, x2, y2, (0, 0, 0), alpha=0.7, radius=10)
+        
+        # Draw main feedback message
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5  # Slightly smaller for mobile
+        thickness = 2
+        
+        # Main message - adjust for narrower width
+        text_size = cv2.getTextSize(feedback['message'], font, font_scale, thickness)[0]
+        text_x = ((width - side_margin * 2) - text_size[0]) // 2 + side_margin
+        text_y = bg_y_start + 20
+        cv2.putText(image, feedback['message'], (text_x, text_y), font, font_scale, feedback['color'], thickness)
+        
+        # Draw form analysis if available (compact)
+        if feedback.get('form_analysis'):
+            form_analysis = feedback['form_analysis']
+            
+            # Show depth status message only if it exists
+            if form_analysis.get('depth_message') and form_analysis.get('depth_status'):
+                depth_text = form_analysis['depth_message']
+                # Truncate if too long
+                if len(depth_text) > 45:  # Reduced from 50 for mobile
+                    depth_text = depth_text[:42] + "..."
+                depth_size = cv2.getTextSize(depth_text, font, 0.5, 1)[0]  # Smaller font
+                depth_x = ((width - side_margin * 2) - depth_size[0]) // 2 + side_margin
+                depth_y = bg_y_start + 45
+                
+                # Use different colors based on depth status
+                if form_analysis.get('depth_status') == 'good':
+                    depth_color = (0, 255, 0)  # Green for good depth
+                elif form_analysis.get('depth_status') == 'needs_improvement':
+                    depth_color = (0, 165, 255)  # Orange for needs improvement
+                else:
+                    depth_color = (255, 255, 255)  # White for other statuses
+                
+                cv2.putText(image, depth_text, (depth_x, depth_y), font, 0.5, depth_color, 1)
+                
+                # Show recommendation below depth message if available
+                if form_analysis.get('recommendations') and len(form_analysis['recommendations']) > 0:
+                    recommendation_text = form_analysis['recommendations'][0]
+                    
+                    # Break long text into multiple lines instead of truncating
+                    max_chars_per_line = 65
+                    if len(recommendation_text) > max_chars_per_line:
+                        # Split text into lines
+                        lines = []
+                        words = recommendation_text.split()
+                        current_line = ""
+                        
+                        for word in words:
+                            if len(current_line + " " + word) <= max_chars_per_line:
+                                current_line += (" " + word) if current_line else word
+                            else:
+                                if current_line:
+                                    lines.append(current_line)
+                                current_line = word
+                        
+                        if current_line:
+                            lines.append(current_line)
+                    else:
+                        lines = [recommendation_text]
+                    
+                    # Draw each line
+                    line_height = 15  # Space between lines
+                    for i, line in enumerate(lines):
+                        line_size = cv2.getTextSize(line, font, 0.4, 1)[0]
+                        line_x = ((width - side_margin * 2) - line_size[0]) // 2 + side_margin
+                        line_y = bg_y_start + 65 + (i * line_height)  # Below depth message, with spacing
+                        
+                        # Use a different color for recommendations (cyan)
+                        recommendation_color = (255, 255, 0)  # Cyan for recommendations
+                        cv2.putText(image, line, (line_x, line_y), font, 0.4, recommendation_color, 1)
     
     return image
 
